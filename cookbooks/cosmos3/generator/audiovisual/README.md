@@ -284,6 +284,8 @@ response = requests.post(
         "guidance_scale": 6.0,
         "max_sequence_length": 4096,
         "seed": 0,
+        "format": "mp4",
+        "response_format": "file",
         "extra_params": {
             "use_resolution_template": False,
             "use_duration_template": False,
@@ -291,20 +293,26 @@ response = requests.post(
             "use_guardrails": True,
         },
     },
+    headers={"Accept": "video/mp4"},
 )
 response.raise_for_status()
-suffix = ".avi" if "x-msvideo" in response.headers.get("content-type", "") else ".mp4"
-Path(f"/tmp/cosmos3_t2v_trtllm{suffix}").write_bytes(response.content)
+if (
+    "video/mp4" not in response.headers.get("content-type", "")
+    or response.content[4:8] != b"ftyp"
+):
+    raise RuntimeError("TensorRT-LLM did not return browser-compatible MP4")
+Path("/tmp/cosmos3_t2v_trtllm.mp4").write_bytes(response.content)
 ```
 
 For image-to-video, post multipart form data to the same endpoint with the
-reference image under `input_reference`. To generate synchronized audio for a
+reference image under `image_reference`. To generate synchronized audio for a
 text-to-video or image-to-video request, add `"enable_audio": True` to
 `extra_params`. Keep `ffmpeg` installed in the server environment so TensorRT-LLM
-can mux the generated audio into the MP4; its fallback AVI encoder is video-only.
+can mux the generated audio into MP4. Explicit `format=mp4` makes a missing
+encoder fail early instead of returning browser-incompatible AVI.
 
-For video-to-video, upload an MP4 or AVI reference under `input_reference`.
-TensorRT-LLM classifies the upload by content and forwards the encoded bytes to
+For video-to-video, upload an MP4 reference under `video_reference`.
+TensorRT-LLM forwards the encoded bytes to
 the Cosmos3 workers, which decode the conditioning window with NVDEC:
 
 ```python
@@ -330,6 +338,8 @@ with source_video.open("rb") as video_file:
             "guidance_scale": "6.0",
             "max_sequence_length": "4096",
             "seed": "0",
+            "format": "mp4",
+            "response_format": "file",
             "extra_params": json.dumps(
                 {
                     "use_resolution_template": False,
@@ -342,12 +352,16 @@ with source_video.open("rb") as video_file:
                 separators=(",", ":"),
             ),
         },
-        files={"input_reference": (source_video.name, video_file, "video/mp4")},
-        headers={"Accept": "video/mp4, video/x-msvideo"},
+        files={"video_reference": (source_video.name, video_file, "video/mp4")},
+        headers={"Accept": "video/mp4"},
     )
 response.raise_for_status()
-suffix = ".avi" if "x-msvideo" in response.headers.get("content-type", "") else ".mp4"
-Path(f"/tmp/cosmos3_v2v_trtllm{suffix}").write_bytes(response.content)
+if (
+    "video/mp4" not in response.headers.get("content-type", "")
+    or response.content[4:8] != b"ftyp"
+):
+    raise RuntimeError("TensorRT-LLM did not return browser-compatible MP4")
+Path("/tmp/cosmos3_v2v_trtllm.mp4").write_bytes(response.content)
 ```
 
 `condition_video_latent_indexes` identifies clean latent frames in the output;
@@ -355,15 +369,17 @@ with `[0, 1]`, TensorRT-LLM consumes the first five pixel frames from the input.
 Set `condition_video_keep` to `"last"` to condition on the corresponding tail
 window instead.
 
-For text-to-image, use the same video generation endpoint with `num_frames=1`,
-`seconds=1`, and `fps=8`; TensorRT-LLM Cosmos3 returns a one-frame video
-response for this path. `num_frames` is passed explicitly so the server does not
-derive an eight-frame clip from `seconds * fps`.
+For text-to-image, send JSON to `/v1/images/generations` with `format=png`,
+`response_format=b64_json`, and `extra_params.output_type="image"`, then
+base64-decode `data[0].b64_json`. This produces a PNG image instead of wrapping
+one frame in a video container.
 
 For `nvidia/Cosmos3-Super-Text2Image-4Step`, use the one-GPU
-`cosmos3-t2i-1gpu.yaml` config and a 1024×1024 one-frame request. For
+`cosmos3-t2i-1gpu.yaml` config and a 1024×1024 image request. For
 `nvidia/Cosmos3-Super-Image2Video-4Step`, use the checkpoint's default
-1280×720, 189-frame, 24 fps deployment shape. Both checkpoints own a fixed
+1280×720, 189-frame, 24 fps deployment shape. Launch distilled I2V with
+`--enable_visual_gen`; otherwise that omni checkpoint can enter the LLM/MPI
+executor. Both checkpoints own a fixed
 four-step schedule with guidance baked into the weights, so omit
 `num_inference_steps` and `guidance_scale`. Leave `use_system_prompt` unset for
 distilled I2V so TensorRT-LLM applies the checkpoint-declared default.

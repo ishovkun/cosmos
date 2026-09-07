@@ -26,8 +26,8 @@ Environment setup is centralized in the shared
 Video transfer generates a target clip from a `prompt.json` caption and one or more
 spatial control signals. The Framework path uses `model_mode` `video2video` in a local JSON spec.
 TensorRT-LLM uses `POST /v1/videos/sync`. A raw source used to derive edge or
-blur is multipart `input_reference`; precomputed controls are carried directly
-under their `extra_params` hint and do not need an `input_reference`.
+blur is multipart `video_reference`; precomputed controls are carried directly
+under their `extra_params` hint and do not need a top-level reference.
 The vLLM-Omni path uses `POST /v1/videos/sync` and passes one or more hint keys (`edge`, `blur`,
 `depth`, `seg`, or `wsm`) inside `extra_params`. Cosmos Framework accepts pre-computed
 control videos (`control_path`) or derives active controls from a raw source video
@@ -200,10 +200,10 @@ reuses the previews from [`preview_helpers.py`](./preview_helpers.py), writing o
 
 Set up and launch Nano or Super as described in the shared
 [TensorRT-LLM setup](../../README.md#tensorrt-llm-generator). TensorRT-LLM
-accepts a raw source video as multipart `input_reference` when edge or blur will
+accepts a raw source video as multipart `video_reference` when edge or blur will
 be computed on the server. The checked-in assets are already precomputed
 controls, so this example base64-encodes the control inside its hint and does
-not send an `input_reference`. The server decodes inline media at the HTTP
+not send a top-level reference. The server decodes inline media at the HTTP
 boundary before validating and dispatching the request.
 
 ```python
@@ -244,15 +244,19 @@ response = requests.post(
         "guidance_scale": 3.0,
         "max_sequence_length": 4096,
         "seed": 2026,
-        "format": "auto",
+        "format": "mp4",
         "response_format": "file",
         "extra_params": extra_params,
     },
-    headers={"Accept": "video/mp4, video/x-msvideo"},
+    headers={"Accept": "video/mp4"},
 )
 response.raise_for_status()
-suffix = ".avi" if "avi" in response.headers.get("content-type", "") else ".mp4"
-Path(f"/tmp/cosmos3_transfer_depth_trtllm{suffix}").write_bytes(response.content)
+if (
+    "video/mp4" not in response.headers.get("content-type", "")
+    or response.content[4:8] != b"ftyp"
+):
+    raise RuntimeError("TensorRT-LLM did not return browser-compatible MP4")
+Path("/tmp/cosmos3_transfer_depth_trtllm.mp4").write_bytes(response.content)
 ```
 
 Only edge and blur can be generated from a raw uploaded source (`"edge": true`

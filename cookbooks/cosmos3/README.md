@@ -252,7 +252,7 @@ torchrun --nproc_per_node=4 -m tensorrt_llm.commands.serve \
   --port "$COSMOS3_TRTLLM_PORT"
 ```
 
-**Four-step distilled T2I** (single GPU; 1024×1024, one-frame warmup):
+**Four-step distilled T2I** (single GPU; 1024×1024 image warmup):
 
 ```bash
 trtllm-serve nvidia/Cosmos3-Super-Text2Image-4Step \
@@ -264,37 +264,40 @@ trtllm-serve nvidia/Cosmos3-Super-Text2Image-4Step \
 
 ```bash
 trtllm-serve nvidia/Cosmos3-Super-Image2Video-4Step \
+  --enable_visual_gen \
   --port "$COSMOS3_TRTLLM_PORT"
 ```
 
 The server exposes `/health`, the blocking `/v1/videos/sync`, the asynchronous
 `/v1/videos`, and `/v1/images/generations`. The older
 `/v1/videos/generations` spelling is a deprecated alias of `/v1/videos/sync`.
-The audiovisual notebook uses `/v1/videos/sync` for text-to-image, text-to-video,
-image-to-video, video-to-video, and synchronized audio. Cosmos3 text-to-image is
-sent as a one-frame video request, matching the TensorRT-LLM Cosmos3 pipeline;
-the notebook sends it as `num_frames=1`, `seconds=1`, and `fps=8` to satisfy the
-video request schema while preserving a single generated frame. Image-to-video and
-video-to-video upload their reference media as multipart `input_reference`;
-TensorRT-LLM classifies the reference by content. Synchronized audio is enabled
+The audiovisual notebook uses `/v1/images/generations` for text-to-image and
+`/v1/videos/sync` for text-to-video, image-to-video, video-to-video, and
+synchronized audio. Text-to-image sets `extra_params.output_type="image"` and
+returns a base64-encoded PNG. Image-to-video uploads multipart
+`image_reference`; video-to-video uses `video_reference`.
+Synchronized audio is enabled
 with `enable_audio: true` in `extra_params` and is muxed into the output video.
-Keep `ffmpeg` on the server `PATH`: without it, TensorRT-LLM falls back to a
-video-only AVI encoder and cannot preserve generated audio. Requests send
+Every video request explicitly selects MP4. Keep `ffmpeg` on the server `PATH`:
+without it, the request fails early instead of returning browser-incompatible
+AVI or dropping generated audio. Requests send
 Cosmos3 controls through `extra_params`, so use a TensorRT-LLM build that includes
 the Cosmos3 VisualGen API schema. The notebook sets request-level
 `max_sequence_length=4096` for longer structured JSON prompts.
 
 Transfer uses the synchronous `/v1/videos/sync` route. For server-derived edge
-or blur, upload the raw source video as multipart `input_reference` and set the
+or blur, upload the raw source video as multipart `video_reference` and set the
 corresponding `extra_params` hint to `true`. For a precomputed edge, blur,
 depth, segmentation, or WSM control, base64-encode the control inside its hint;
-no `input_reference` is needed. The server decodes inline media to bytes at the
+no top-level reference is needed. The server decodes inline media to bytes at the
 HTTP boundary. TensorRT-LLM uses `use_guardrails` for its per-request safety
 switch; `guardrails`, `control_path`, and other vLLM-Omni-only names are not
 interchangeable.
 
-Action requests use the same synchronous route and upload an image or video as
-`input_reference`. Because an action trajectory cannot be represented in MP4 or
+Action requests use the same synchronous route and upload an image as
+`image_reference` or a video as `video_reference`. Use a structured action
+caption in `prompt`; current TensorRT-LLM ignores the legacy `view_point` field.
+Because an action trajectory cannot be represented in MP4 or
 AVI, `format=auto` resolves to `safetensors`; the payload contains named `video`,
 `action`, and `frame_rate` tensors. The asynchronous `/v1/videos` route also
 supports this payload: poll `GET /v1/videos/{id}`, then download it from
