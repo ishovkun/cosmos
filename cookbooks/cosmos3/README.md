@@ -170,7 +170,7 @@ uv pip install --torch-backend=cu130 \
 
 OpenAI-compatible **VisualGen** server for Generator audiovisual text-to-image,
 text-to-video, image-to-video, video-to-video, synchronized audio, Transfer, and
-Action examples, including the published four-step T2I and I2V students.
+Action examples.
 Initial Cosmos3 support was added in TensorRT-LLM PR
 [#14824](https://github.com/NVIDIA/TensorRT-LLM/pull/14824), synchronized audio
 in [#14827](https://github.com/NVIDIA/TensorRT-LLM/pull/14827), and
@@ -252,22 +252,6 @@ torchrun --nproc_per_node=4 -m tensorrt_llm.commands.serve \
   --port "$COSMOS3_TRTLLM_PORT"
 ```
 
-**Four-step distilled T2I** (single GPU; 1024×1024 image warmup):
-
-```bash
-trtllm-serve nvidia/Cosmos3-Super-Text2Image-4Step \
-  --visual_gen_args "$TRTLLM_ROOT/examples/visual_gen/configs/cosmos3-t2i-1gpu.yaml" \
-  --port "$COSMOS3_TRTLLM_PORT"
-```
-
-**Four-step distilled I2V** (single GPU; default 1280×720, 189-frame shape):
-
-```bash
-trtllm-serve nvidia/Cosmos3-Super-Image2Video-4Step \
-  --enable_visual_gen \
-  --port "$COSMOS3_TRTLLM_PORT"
-```
-
 The server exposes `/health`, the blocking `/v1/videos/sync`, the asynchronous
 `/v1/videos`, and `/v1/images/generations`. The older
 `/v1/videos/generations` spelling is a deprecated alias of `/v1/videos/sync`.
@@ -302,12 +286,6 @@ AVI, `format=auto` resolves to `safetensors`; the payload contains named `video`
 `action`, and `frame_rate` tensors. The asynchronous `/v1/videos` route also
 supports this payload: poll `GET /v1/videos/{id}`, then download it from
 `GET /v1/videos/{id}/content`.
-
-The distilled checkpoints own their four-step stochastic schedules and have
-classifier-free guidance baked into their weights. Leave `num_inference_steps`
-and `guidance_scale` unset; conflicting values are rejected. Also leave
-`use_system_prompt` unset for distilled I2V so its checkpoint-declared default
-is applied.
 
 ## TensorRT-LLM Reasoner
 

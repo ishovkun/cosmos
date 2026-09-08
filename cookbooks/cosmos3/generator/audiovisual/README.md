@@ -374,16 +374,6 @@ For text-to-image, send JSON to `/v1/images/generations` with `format=png`,
 base64-decode `data[0].b64_json`. This produces a PNG image instead of wrapping
 one frame in a video container.
 
-For `nvidia/Cosmos3-Super-Text2Image-4Step`, use the one-GPU
-`cosmos3-t2i-1gpu.yaml` config and a 1024×1024 image request. For
-`nvidia/Cosmos3-Super-Image2Video-4Step`, use the checkpoint's default
-1280×720, 189-frame, 24 fps deployment shape. Launch distilled I2V with
-`--enable_visual_gen`; otherwise that omni checkpoint can enter the LLM/MPI
-executor. Both checkpoints own a fixed
-four-step schedule with guidance baked into the weights, so omit
-`num_inference_steps` and `guidance_scale`. Leave `use_system_prompt` unset for
-distilled I2V so TensorRT-LLM applies the checkpoint-declared default.
-
 The TRT-LLM notebook always sends model-specific `extra_params`, so use a
 TensorRT-LLM release with the Cosmos3 VisualGen API schema. The notebook sets
 request-level `max_sequence_length=4096` for longer structured JSON prompts.
@@ -393,10 +383,8 @@ request-level `max_sequence_length=4096` for longer structured JSON prompts.
 [`run_with_trt_llm.ipynb`](./run_with_trt_llm.ipynb) is the full tutorial for the
 TensorRT-LLM backend: it walks through text-to-image, text-to-video and
 image-to-video with or without synchronized audio, and video-to-video requests
-against an already-running VisualGen server. Independent final sections cover
-the published four-step T2I and I2V students without overriding their fixed
-sampling recipes. Server launch options (Nano, Super, distilled T2I, and
-distilled I2V) live in the
+against an already-running VisualGen server. Server launch options for Nano and
+Super live in the
 [shared environment setup guide](../../README.md#tensorrt-llm-generator).
 
 ## Run with NIM
