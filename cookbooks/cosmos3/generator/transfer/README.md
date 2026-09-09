@@ -222,6 +222,7 @@ extra_params = {
     "use_duration_template": False,
     "use_system_prompt": False,
     "use_guardrails": True,
+    "flow_shift": 10.0,
     "depth": {
         "control": base64.b64encode(control_path.read_bytes()).decode("ascii")
     },
@@ -229,6 +230,8 @@ extra_params = {
     "num_video_frames_per_chunk": 121,
     "num_conditional_frames": 1,
     "num_first_chunk_conditional_frames": 0,
+    "share_vision_temporal_positions": True,
+    "emphasize_control_in_prompt": False,
     "max_frames": 121,
 }
 
@@ -240,7 +243,7 @@ response = requests.post(
         "size": "1280x720",
         "num_frames": 121,
         "fps": 30,
-        "num_inference_steps": 35,
+        "num_inference_steps": 50,
         "guidance_scale": 3.0,
         "max_sequence_length": 4096,
         "seed": 2026,
@@ -265,9 +268,10 @@ control media. Precomputed edge and blur are also accepted. Use
 `use_guardrails`, not vLLM-Omni's `guardrails`, and send encoded control bytes
 rather than a server-local `control_path`. When neither output dimension is
 specified, TensorRT-LLM chooses the nearest supported bucket from the source or
-first precomputed control's aspect ratio. The checked-in examples explicitly
-request 1280×720 and their native frame count/fps; WSM uses 100 frames at 10
-fps. `/v1/videos/generations` remains only as a deprecated alias of the
+first precomputed control's aspect ratio. The checked-in blur example explicitly
+requests its native 4:3 bucket, 1104×832; the other examples request
+1280×720. All preserve their native frame count/fps, and WSM uses 100 frames
+at 10 fps. `/v1/videos/generations` remains only as a deprecated alias of the
 canonical blocking `/v1/videos/sync` route.
 
 ### TensorRT-LLM notebook walkthrough

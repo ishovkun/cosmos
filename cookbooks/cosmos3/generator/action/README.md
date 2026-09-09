@@ -177,8 +177,8 @@ Set up and launch the VisualGen server with the one-GPU Nano config:
 [TensorRT-LLM setup](../../README.md#tensorrt-llm-generator). Action requests
 upload a conditioning image as multipart `image_reference` or a video as
 `video_reference`, and put the mode-specific fields under `extra_params`.
-Use the structured prompt contract shown below; the legacy `view_point` field
-is ignored by current TensorRT-LLM.
+Use the same trained AV prompt as the Cosmos Framework reference; the legacy
+`view_point` field is ignored by current TensorRT-LLM.
 
 ```python
 import json
@@ -190,24 +190,7 @@ from safetensors.torch import load as load_safetensors
 action_root = Path("cookbooks/cosmos3/generator/action")
 image_path = action_root / "assets/images/av_0.jpg"
 actions = json.loads((action_root / "assets/actions/av_traj_forward.json").read_text())
-prompt = json.dumps(
-    {
-        "cinematography": {
-            "framing": "This video is captured from a first-person perspective looking at the scene."
-        },
-        "actions": [
-            {
-                "time": "0:00-0:06",
-                "description": "The vehicle drives straight forward with smooth ego motion while the road and surrounding buildings remain consistent.",
-            }
-        ],
-        "duration": "6s",
-        "fps": 10.0,
-        "resolution": {"H": 480, "W": 832},
-        "aspect_ratio": "16,9",
-    },
-    separators=(",", ":"),
-)
+prompt = "You are an autonomous vehicle planning system."
 
 with image_path.open("rb") as image_file:
     response = requests.post(
@@ -216,7 +199,7 @@ with image_path.open("rb") as image_file:
             "prompt": prompt,
             "format": "safetensors",
             "response_format": "file",
-            "seed": "8",
+            "seed": "0",
             "extra_params": json.dumps(
                 {
                     "action_mode": "forward_dynamics",
@@ -233,9 +216,6 @@ response.raise_for_status()
 payload = load_safetensors(response.content)
 print(payload["video"].shape, payload["action"].shape, payload["frame_rate"].item())
 ```
-
-The checked-in AV example uses seed 8, which was substantially more coherent
-than seed 0 in validation; seed 0 degraded badly near the end of the rollout.
 
 The `av` domain preset supplies its 60-step, 9D, 480p/10 fps recipe; other
 recognized domains similarly fill omitted action width, chunk, resolution, and

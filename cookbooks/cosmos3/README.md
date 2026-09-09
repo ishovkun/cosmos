@@ -279,8 +279,9 @@ switch; `guardrails`, `control_path`, and other vLLM-Omni-only names are not
 interchangeable.
 
 Action requests use the same synchronous route and upload an image as
-`image_reference` or a video as `video_reference`. Use a structured action
-caption in `prompt`; current TensorRT-LLM ignores the legacy `view_point` field.
+`image_reference` or a video as `video_reference`. For the checked-in AV
+examples, use the Cosmos Framework reference prompt shown in the Action
+cookbook; current TensorRT-LLM ignores the legacy `view_point` field.
 Because an action trajectory cannot be represented in MP4 or
 AVI, `format=auto` resolves to `safetensors`; the payload contains named `video`,
 `action`, and `frame_rate` tensors. The asynchronous `/v1/videos` route also
